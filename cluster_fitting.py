@@ -8,11 +8,12 @@ Created on Tue Jan 17 18:12:56 2023
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import itertools as iter
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import normalize
 import scipy.stats as sci
-import scipy.optimize as sciop
+import scipy.optimize as opt
 
 
 
@@ -57,8 +58,8 @@ def cleanDataTrans(dataframe):
     dataframe = dataframe.dropna()
     return dataframe
 
-def get_Gdp(Dataset):
-    data= pd.read_csv('GDP.csv');
+def plotdata(dataset,):
+    data= pd.read_csv(dataset);
     data = trimData(data)
     data_year = data.iloc[:,34:]
     data_country = data.iloc[:,0]
@@ -71,8 +72,38 @@ def get_Gdp(Dataset):
     data['Year']=pd.to_numeric(data['Year'])
     return data
 
-def curvefunction(x,a,b):
-    y = a + np.exp(b*x)
+
+def err_ranges(x, func, param, sigma):
+    """
+    Calculates the upper and lower limits for the function, parameters and
+    sigmas for single value or array x. Functions values are calculated for 
+    all combinations of +/- sigma and the minimum and maximum is determined.
+    Can be used for all number of parameters and sigmas >=1.
+    
+    This routine can be used in assignment programs.
+    """
+
+    # initiate arrays for lower and upper limits
+    lower = func(x, *param)
+    upper = lower
+    
+    uplow = []   # list to hold upper and lower limits for parameters
+    for p,s in zip(param, sigma):
+        pmin = p - s
+        pmax = p + s
+        uplow.append((pmin, pmax))
+        
+    pmix = list(iter.product(*uplow))
+    
+    for p in pmix:
+        y = func(x, *p)
+        lower = np.minimum(lower, y)
+        upper = np.maximum(upper, y)
+        
+    return lower, upper 
+
+def curvefunction(x,a,b,c):
+    y = a + b*x + c*x**2
     return y
 
 
@@ -80,13 +111,15 @@ def curvefunction(x,a,b):
 df_data, df_data_trans = read_Data('Data.csv')
 df_data = cleandata(df_data) 
 df_data_trans = cleanDataTrans(df_data_trans)
-Gdp_data = get_Gdp(df_data)
-print(Gdp_data.dtypes)
+Gdp_data = plotdata('GDP.csv')
+co2_data = plotdata('co2.csv')
+ele_data = plotdata('Electricity.csv')
 
 
-#plot
 
-plt.figure()
+# #plot
+
+plt.figure(figsize=(10,10))
 plt.plot(Gdp_data["Year"], Gdp_data["India"], label="India")
 plt.plot(Gdp_data["Year"], Gdp_data["China"], label="China")
 plt.plot(Gdp_data["Year"], Gdp_data["United States"], label="US")
@@ -95,44 +128,101 @@ plt.plot(Gdp_data["Year"], Gdp_data["Brazil"], label="Brazil")
 plt.plot(Gdp_data["Year"], Gdp_data["Australia"], label="Australia")
 plt.plot(Gdp_data["Year"], Gdp_data["South Africa"], label="South Africa")
 plt.plot(Gdp_data["Year"], Gdp_data["Germany"], label="Germany")
-plt.title("GDP changes of each country over past 30 year",fontsize=12)
+plt.title("GDP changes of each country over past 30 year",fontsize=10)
+plt.xlabel("Year")
+plt.ylabel("GDP")
 plt.xticks(rotation = 90)
 plt.legend()
 plt.show()
 
-# scatter
-plt.scatter(Gdp_data["Year"], Gdp_data["China"])
-plt.xticks(rotation =90)
 
-param, pcovar = sciop.curve_fit(curvefunction, Gdp_data["Year"], Gdp_data["China"],maxfev=40000)
-print(*param)
-plt.plot(Gdp_data["Year"],curvefunction(Gdp_data["Year"],*param))
-plt.plot(Gdp_data["Year"],curvefunction(Gdp_data["Year"]))
+# #Bar graph 
+plt.figure(figsize=(10,10))
+countries= np.array(Gdp_data.columns[0:-1])
+df_data["GDP/Capita"]=df_data["GDP(PPP)"]/df_data["Population"]
+Capita=np.array(df_data["GDP/Capita"])
+plt.ylabel("GDP/Capita")   
+plt.xlabel("Countries")
+plt.title('GDP/Capita of all the countries')
+plt.bar(countries,Capita,width=0.5)
+plt.show()
+
+#CO2 plot
+#plot
+plt.figure(figsize=(10,10))
+plt.plot(co2_data["Year"], co2_data["India"], label="India")
+plt.plot(co2_data["Year"], co2_data["China"], label="China")
+plt.plot(co2_data["Year"], co2_data["United States"], label="US")
+plt.plot(co2_data["Year"], co2_data["United Kingdom"], label="UK")
+plt.plot(co2_data["Year"], co2_data["Brazil"], label="Brazil")
+plt.plot(co2_data["Year"], co2_data["Australia"], label="Australia")
+plt.plot(co2_data["Year"], co2_data["South Africa"], label="South Africa")
+plt.plot(co2_data["Year"], co2_data["Germany"], label="Germany")
+plt.title("CO2 emmision of each country over past 30 year",fontsize=10)
+plt.xlabel("Year")
+plt.ylabel("CO2 emmision(Kt)")
+plt.xticks(rotation = 90)
+plt.legend(loc=2, prop={'size': 7})
+plt.show()
+
+
+# scatter
+error = np.log(co2_data["Year"])
+plt.figure()
+plt.scatter(co2_data["Year"], co2_data["India"])
+plt.xticks(rotation =90)
+param, pcovar = opt.curve_fit(curvefunction, co2_data["Year"], co2_data["India"],sigma=(error))
+year = np.arange(2019,2030)
+plt.plot(co2_data["Year"],curvefunction(co2_data["Year"],*param),label="fit")
+predicted_data = curvefunction(year,*param)
+lower,upper = err_ranges(co2_data["Year"], curvefunction, param, error)
+plt.plot(year,predicted_data,label="predicted line")
+plt.xlabel("Year")
+plt.ylabel("Co2 Consumption")
+plt.title("Co2 comsumption of india from 1990-2030")
+plt.legend()
+plt.show()
+
+#Renewable Electricity  plot
+#plot
+
+plt.figure(figsize=(10,10))
+plt.plot(ele_data["Year"], ele_data["India"], label="India")
+plt.plot(ele_data["Year"], ele_data["China"], label="China")
+plt.plot(ele_data["Year"], ele_data["United States"], label="US")
+plt.plot(ele_data["Year"], ele_data["United Kingdom"], label="UK")
+plt.plot(ele_data["Year"], ele_data["Brazil"], label="Brazil")
+plt.plot(ele_data["Year"], ele_data["Australia"], label="Australia")
+plt.plot(ele_data["Year"], ele_data["South Africa"], label="South Africa")
+plt.plot(ele_data["Year"], ele_data["Germany"], label="Germany")
+plt.title("Electric production from renewable source",fontsize=12)
+plt.xlabel("Year")
+plt.ylabel("ELectricity production(Kwh)")
+plt.xticks(rotation = 90)
+plt.legend(loc=2, prop={'size': 8})
+plt.show()
 
 
 #heatmap
 
-corr=df_data.describe().corr()
-fig, ax = plt.subplots(figsize=(8, 8))
+corr=df_data.iloc[:,:-1].corr()
+fig, ax = plt.subplots(figsize=(10, 10))
 ax.matshow(corr, cmap='coolwarm')
 # setting ticks to column names
 plt.xticks(range(len(corr.columns)), corr.columns, rotation=90)
 plt.yticks(range(len(corr.columns)), corr.columns)
 plt.show()
 
- 
-plt.figure()
-data = list(zip(df_data['GDP(PPP)'],df_data['Population']))
-kmeans = KMeans(n_clusters=2)
-kmeans.fit(data)
-plt.scatter(df_data['GDP(PPP)'],df_data['Population'], c=kmeans.labels_)
-plt.show()
 
-plt.figure()
+plt.figure(figsize=(8,8))
 data = list(zip(df_data['GDP(PPP)'],df_data['CO2 Consumption']))
 kmeans = KMeans(n_clusters=2)
 kmeans.fit(data)
 plt.scatter(df_data['GDP(PPP)'],df_data['CO2 Consumption'], c=kmeans.labels_)
+plt.title("GDP vs CO2 Emmision ")
+plt.xlabel("GDP(PPP)")
+plt.ylabel("CO2 Emmision")
 plt.show()
+
 
 
